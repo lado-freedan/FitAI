@@ -1,0 +1,11 @@
+Django>=5.0,<6.0
+djangorestframework
+djangorestframework-simplejwt
+django-environ
+dj-database_url
+psycopg2-binary
+celery
+redis
+pillow
+google-generativeai
+django-redis
