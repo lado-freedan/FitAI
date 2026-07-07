@@ -21,10 +21,23 @@ class UserProfile(models.Model):
         ("ENDURANCE", "Endurance")
     ]
 
+
     GENDER_CHOICES = [
         ("MALE", "Male"),
         ("FEMALE", "Female"),
     ]
+
+    class WorkoutLocation(models.TextChoices):
+        GYM = "GYM", "Gym (Full Equipment)"
+        HOME_BAND = "HOME_BAND", "Home with Resistance Bands"
+        BODYWEIGHT = "BODYWEIGHT", "Bodyweight Only (Calisthenics, Pull-ups, Push-ups)"
+
+    workout_location = models.CharField(
+        max_length=20,
+        choices=WorkoutLocation.choices,
+        default=WorkoutLocation.GYM,
+        help_text="Where and with what equipment the user works out"
+    )
 
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
     fitness_category = models.CharField(max_length=20, choices=FITNESS_CATEGORIES)
@@ -33,6 +46,9 @@ class UserProfile(models.Model):
     age = models.PositiveIntegerField(validators=[MinValueValidator(10), MaxValueValidator(100)])
     weight = models.FloatField(validators=[MinValueValidator(30.0), MaxValueValidator(250.0)], help_text="weight in kg")
     height = models.FloatField(validators=[MinValueValidator(100.0), MaxValueValidator(250.0)], help_text="height in cm")
+
+    is_vegetarian = models.BooleanField(default=False)
+    requires_halal = models.BooleanField(default=False)
 
     phone_regex = RegexValidator(
         regex=r'^\+\d{9,15}$',
@@ -52,3 +68,16 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"profile for {self.user.username} - {self.get_fitness_category_display()}"
     
+
+class AIPlan(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="fitness_plans")
+    plan_type = models.CharField(max_length=50, default="COMBINED")
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Plan for {self.user.username} - {self.created_at.strftime('%Y-%m-%d')}"

@@ -9,3 +9,4 @@ redis
 pillow
 google-generativeai
 django-redis
+google-genai

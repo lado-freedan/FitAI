@@ -9,7 +9,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             "gender", "fitness_category", "fitness_goal",
-            "age", "weight", "height", "phone_number", "country"
+            "age", "weight", "height", "phone_number", "country",
+            "is_vegetarian", "requires_halal",
+            "workout_location"
         ]
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -24,6 +26,11 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name": {"required": True},
             "last_name": {"required": True}
         }
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Entered email already exists.")
+        return value
 
     def create(self, validated_data):
         profile_data = validated_data.pop("profile")
