@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
-from .models import UserProfile
+from .models import UserProfile, DailyLog, AIPlan
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -46,3 +46,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         UserProfile.objects.create(user=user, **profile_data)
 
         return User
+    
+
+class DailyLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyLog
+        fields = ["id", "date", "water_intake_ml", "calories_consumed", "workout_completed", "notes"]
+        read_only_fields = ["id", "date"]
+
+
+class AIPlanHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIPlan
+        fields = ["id", "plan_type", "content", "created_at", "is_active"]

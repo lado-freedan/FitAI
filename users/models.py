@@ -81,3 +81,20 @@ class AIPlan(models.Model):
 
     def __str__(self):
         return f"Plan for {self.user.username} - {self.created_at.strftime('%Y-%m-%d')}"
+    
+
+class DailyLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="daily_logs")
+    date = models.DateField(auto_now_add=True)
+
+    water_intake_ml = models.IntegerField(default=0, help_text="Water intake in milliliters")
+    calories_consumed = models.IntegerField(default=0, help_text="Calories consumed today")
+    workout_completed = models.BooleanField(default=False, help_text="Did the user complete today's workout?")
+    notes = models.TextField(blank=True, null=True, help_text="Any optional notes from the user")
+
+    class Meta:
+        ordering = ["-date"]
+        unique_together = ("user", "date")
+
+    def __str__(self):
+        return f"Log for {self.user.username} on {self.date}"

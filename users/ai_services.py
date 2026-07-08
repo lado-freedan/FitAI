@@ -48,3 +48,40 @@ class GeminaiFitnessService:
             return response.text
         except Exception as e:
             return f"Error communicationg with Gemini API: {str(e)}"
+        
+
+    def generate_weekly_progress_analysis(self, user_profile, logs_data):
+        logs_summary = ""
+        for log in logs_data:
+            status = "Completed" if log.workout_completed else "Missed"
+            logs_summary += f'- Date: {log.date} | Water: {log.water_intake_ml}ml | Calories: {log.calories_consumed} kcal | Workout: {status} | Notes: {log.notes or "None"}\n'
+
+        prompt = f"""
+        You are an expert AI Fitness Coach and Behavioral Analyst.
+        Analyze the user's daily tracking logs from the past week and provide a constractive, motivating and analytical feedback report.
+        
+        User Profile:
+        - Goal: {user_profile.fitness_goal}
+        - Current Weight: {user_profile.weight} kg
+
+        Weekly Logs Data:
+        {logs_summary}
+
+        Requirements for output:
+        1. Evaluate their consistency (Workout completion rate, Hydration levels and Calories intake relative to their goal).
+        2. Identify positive patterns or areas that need immediate improvment.
+        3. Provide 2-3 highly actionable tips for upcoming week.
+        4. Keep the tone inspiring, direct and professional.
+        5. Return the response formatted clearly in clean Markdown (in english language).
+        """
+
+        try:
+            from google import genai
+            client = genai.Client()
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e:
+            return f"Error communicationg with Gemini API: {str(e)}"
