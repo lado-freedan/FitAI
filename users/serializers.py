@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
-from .models import UserProfile, DailyLog, AIPlan
+from .models import UserProfile, DailyLog, AIPlan, BodyAnalysisRequest
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -11,7 +11,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "gender", "fitness_category", "fitness_goal",
             "age", "weight", "height", "phone_number", "country",
             "is_vegetarian", "requires_halal",
-            "workout_location"
+            "workout_location", "workout_days_per_week"
         ]
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -59,3 +59,29 @@ class AIPlanHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = AIPlan
         fields = ["id", "plan_type", "content", "created_at", "is_active"]
+
+
+class BodyAnalysisUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BodyAnalysisRequest
+        fields = ["id", "image_front", "image_back", "image_side_left", "image_side_right", "uploaded_at", "ai_analysis_result", "is_processed"]
+        read_only_fields = ["id", "uploaded_at", "ai_analysis_result", "is_processed"]
+
+
+class FullUserProfileSerializer(serializers.ModelSerializer):
+    profile_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "profile_details"]
+
+    def get_profile_details(self, obj):
+        profile = getattr(obj, "profile", None)
+        if profile:
+            return {
+                "weight": profile.weight,
+                "fitness_goal": profile.fitness_goal,
+                "workout_location": profile.workout_location,
+                "workout_days_per_week": profile.workout_days_per_week,
+            }
+        return None

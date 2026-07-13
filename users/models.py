@@ -39,6 +39,12 @@ class UserProfile(models.Model):
         help_text="Where and with what equipment the user works out"
     )
 
+    workout_days_per_week = models.IntegerField(
+        default=3,
+        choices=[(i, f"{i} days in week") for i in range(1,8)],
+        help_text="Days in week for workout"
+    )
+
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
     fitness_category = models.CharField(max_length=20, choices=FITNESS_CATEGORIES)
     fitness_goal = models.CharField(max_length=20, choices=FITNESS_GOALS)
@@ -75,6 +81,7 @@ class AIPlan(models.Model):
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    has_visual_analysis = models.BooleanField(default=False, help_text="Does this plan made with photo analyze?")
 
     class Meta:
         ordering = ["-created_at"]
@@ -98,3 +105,26 @@ class DailyLog(models.Model):
 
     def __str__(self):
         return f"Log for {self.user.username} on {self.date}"
+    
+
+def user_body_path(instance, filename):
+    return f"user_{instance.user.id}/body_analysis/{filename}"
+
+
+class BodyAnalysisRequest(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="body_analyses")
+    image_front = models.ImageField(upload_to=user_body_path, help_text="photo from front")
+    image_back = models.ImageField(upload_to=user_body_path, help_text="photo from behind")
+    image_side_left = models.ImageField(upload_to=user_body_path, help_text="photo from left side")
+    image_side_right = models.ImageField(upload_to=user_body_path, help_text="photo from right side")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    description = models.CharField(max_length=255, blank=True, null=True)
+
+    ai_analysis_result = models.TextField(blank=True, null=True)
+    is_processed = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"Body analysis for {self.user.username}on {self.uploaded_at.date()}"

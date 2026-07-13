@@ -5,12 +5,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.contrib.auth.models import User
 from datetime import date, timedelta
 
-from .serializers import RegisterSerializer, UserProfileSerializer, DailyLogSerializer, AIPlanHistorySerializer
+from .serializers import RegisterSerializer, UserProfileSerializer, DailyLogSerializer, AIPlanHistorySerializer, BodyAnalysisUploadSerializer, FullUserProfileSerializer
 from .ai_services import GeminaiFitnessService
-from .models import AIPlan, UserProfile, DailyLog
+from .models import AIPlan, UserProfile, DailyLog, BodyAnalysisRequest
 
 
 class RegisterView(generics.CreateAPIView):
@@ -169,3 +170,69 @@ class AIPlanHistoryView(ListAPIView):
 
     def get_queryset(self):
         return AIPlan.objects.filter(user=self.request.user).order_by("-created_at")
+    
+
+class BodyVisionAnalysisView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        user = request.user
+        profile = getattr(user, "profile", None)
+
+        if not profile:
+            return Response({"error": "First create your profile"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not request.FILES:
+            cached_plan = AIPlan.objects.filter(user=user, is_active=True, has_visual_analysis=True).first()
+            if cached_plan:
+                return Response({
+                    "message": "Taking visual plan from chache data",
+                    "source": "database_cache",
+                    "analysis_and_plan": cached_plan.content
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "There is no photo sent and there is not any active plan"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = BodyAnalysisUploadSerializer(data=request.data)
+
+        if serializer.is_valid():
+            analysis_instance = serializer.save(user=user)
+            front_path = analysis_instance.image_front.path
+            back_path = analysis_instance.image_back.path
+            left_path = analysis_instance.image_side_left.path
+            right_path = analysis_instance.image_side_right.path
+
+            ai_service = GeminaiFitnessService()
+            analysis_result = ai_service.analyze_body_images_and_generate_plan(
+                profile, front_path, back_path, left_path, right_path
+            )
+
+            AIPlan.objects.filter(user=user, is_active=True).update(is_active=False)
+            AIPlan.objects.create(
+                user=user,
+                plan_type="COMBINED",
+                content=analysis_result,
+                is_active=True,
+                has_visual_analysis=True
+            )
+
+            analysis_instance.ai_analysis_result = analysis_result
+            analysis_instance.is_processed = True
+            analysis_instance.save()
+
+            return Response({
+                "message": "Photos analized seccessfully",
+                "source": "gemini_vision_api",
+                "analysis_and_plan": analysis_result
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class UserMeProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = FullUserProfileSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
