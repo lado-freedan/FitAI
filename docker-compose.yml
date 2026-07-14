@@ -33,5 +33,17 @@ services:
       - db
       - redis
 
+  celery_worker:
+    build: .
+    container_name: fitai_celery_worker
+    command: sh -c "PYTHONPATH=. celery -A core worker --loglevel=info"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DEBUG=1
+
 volumes:
   fitai_postgres_data:
