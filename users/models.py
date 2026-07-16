@@ -120,7 +120,12 @@ class BodyAnalysisRequest(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     description = models.CharField(max_length=255, blank=True, null=True)
 
-    ai_analysis_result = models.TextField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[("pending", "Pending"), ("completed", "Completed"), ("failed", "Failed")],
+        default="pending"
+    )
+    ai_analysis_result = models.JSONField(null=True, blank=True)
     is_processed = models.BooleanField(default=False)
 
     class Meta:

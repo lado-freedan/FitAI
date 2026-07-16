@@ -5,7 +5,7 @@ from google import genai
 from django.conf import settings
 
 
-class GeminaiFitnessService:
+class GeminiFitnessService:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         self.client = genai.Client(api_key=api_key)

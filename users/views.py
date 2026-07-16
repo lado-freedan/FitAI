@@ -10,8 +10,9 @@ from django.contrib.auth.models import User
 from datetime import date, timedelta
 
 from .serializers import RegisterSerializer, UserProfileSerializer, DailyLogSerializer, AIPlanHistorySerializer, BodyAnalysisUploadSerializer, FullUserProfileSerializer
-from .ai_services import GeminaiFitnessService
+from .ai_services import GeminiFitnessService
 from .models import AIPlan, UserProfile, DailyLog, BodyAnalysisRequest
+from .tasks import analyze_body_photo_task
 
 
 class RegisterView(generics.CreateAPIView):
@@ -58,7 +59,7 @@ class GenerateAIPlanView(APIView):
                 "ai_generated_plan": active_plan.content
             }, status=status.HTTP_200_OK)
 
-        ai_service = GeminaiFitnessService()
+        ai_service = GeminiFitnessService()
         plan_text = ai_service.generate_workout_and_diet_plan(profile)
 
         if plan_text.startswith("Error"):
@@ -94,9 +95,23 @@ class UpdateUserProfileView(APIView):
 
             AIPlan.objects.filter(user=user, is_active=True).update(is_active=False)
 
+            latest_analysis = BodyAnalysisRequest.objects.filter(user=user).order_by("-uploaded_at").first()
+            if latest_analysis:
+                latest_analysis.status = "pending"
+                latest_analysis.is_processed = False
+                latest_analysis.save()
+
+                analyze_body_photo_task.delay(latest_analysis.id, profile.id)
+
+                return Response({
+                    "message": "Your Profile is Updated. A new plan is being generated based on your updated profile in the background.",
+                    "profile": serializer.data,
+                    "status": "pending"
+                }, status=status.HTTP_200_OK)
+
             return Response({
                 "message": "Your profile is updated and old plan is expired",
-                "profile": serializer.data
+                "profile": serializer.data,
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -153,7 +168,7 @@ class WeeklyAnalysisView(APIView):
                 "message": "For taking weekly report , you must been at least 1week in program"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        ai_service = GeminaiFitnessService()
+        ai_service = GeminiFitnessService()
         analysis_report = ai_service.generate_weekly_progress_analysis(profile, logs)
 
         return Response({
@@ -198,34 +213,16 @@ class BodyVisionAnalysisView(APIView):
 
         if serializer.is_valid():
             analysis_instance = serializer.save(user=user)
-            front_path = analysis_instance.image_front.path
-            back_path = analysis_instance.image_back.path
-            left_path = analysis_instance.image_side_left.path
-            right_path = analysis_instance.image_side_right.path
-
-            ai_service = GeminaiFitnessService()
-            analysis_result = ai_service.analyze_body_images_and_generate_plan(
-                profile, front_path, back_path, left_path, right_path
-            )
-
-            AIPlan.objects.filter(user=user, is_active=True).update(is_active=False)
-            AIPlan.objects.create(
-                user=user,
-                plan_type="COMBINED",
-                content=analysis_result,
-                is_active=True,
-                has_visual_analysis=True
-            )
-
-            analysis_instance.ai_analysis_result = analysis_result
-            analysis_instance.is_processed = True
+            analysis_instance.status = "pending"
             analysis_instance.save()
 
+            analyze_body_photo_task.delay(analysis_instance.id, profile.id)
+
             return Response({
-                "message": "Photos analized seccessfully",
-                "source": "gemini_vision_api",
-                "analysis_and_plan": analysis_result
-            }, status=status.HTTP_200_OK)
+                "message": "Photo received successfully, analysis is being processed in the background.",
+                "analysis_id": analysis_instance.id,
+                "status": "pending",
+            }, status=status.HTTP_202_ACCEPTED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -236,3 +233,33 @@ class UserMeProfileView(APIView):
     def get(self, request):
         serializer = FullUserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class LatestPlanStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        latest_analysis = BodyAnalysisRequest.objects.filter(user=user).order_by("-uploaded_at").first()
+        active_plan = BodyAnalysisRequest.objects.filter(user=user, status="completed").first()
+
+        response_data = {
+            "analysis_status": "no_request",
+            "is_processed": False,
+            "latest_analysis_id": None,
+            "active_plan": None
+        }
+
+        if latest_analysis:
+            response_data["analysis_status"] = latest_analysis.status
+            response_data["is_processed"] = latest_analysis.is_processed
+            response_data["latest_analysis_id"] = latest_analysis.id
+
+        if active_plan:
+            response_data["active_plan"] = {
+                "id": active_plan.id,
+                "content": active_plan.ai_analysis_result,
+                #"created_at": active_plan.created_at
+            }
+        return Response(response_data, status=status.HTTP_200_OK)
