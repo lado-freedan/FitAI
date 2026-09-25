@@ -45,7 +45,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         UserProfile.objects.create(user=user, **profile_data)
 
-        return User
+        return user
     
 
 class DailyLogSerializer(serializers.ModelSerializer):
